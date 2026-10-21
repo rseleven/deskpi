@@ -48,6 +48,10 @@ touch "$LOG"
 # the unit is captured by systemd).  File line is timestamped.
 say() {
     echo "$(date -Is) $*" >> "$LOG"
+    # Flush immediately: the MCU cuts the 5 V rail ~15 s after the token,
+    # and anything still sitting in the page cache is lost on the abrupt
+    # power cut — which would leave the log looking like we never ran.
+    sync "$LOG"
     echo "deskpi-shutdown-helper: $*"
 }
 

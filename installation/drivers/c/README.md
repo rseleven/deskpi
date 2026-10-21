@@ -66,7 +66,7 @@ strings, 9600 8-N-1.
 | host → MCU | `pwm_075` | fan at 75 % |
 | host → MCU | `pwm_100` | fan at 100 % |
 | host → MCU | `power_off` | cut 5 V rail ~15 s later |
-| MCU → host | `poweroff` / `power_off` | double-click on power button — `pwmFanControl64V3` calls `systemctl poweroff` |
+| MCU → host | `poweroff` / `power_off` | DeskPi Pro front-panel power button. The MCU reacts **only to a double-click** — a single click sends nothing. Each click of the pair sends its own token, so one double-click delivers the token **twice**; `pwmFanControl64V3` calls `systemctl poweroff` on the first token and the second is ignored. (Button behaviour on other DeskPi models has not been verified — confirmed on a DeskPi Pro only) |
 
 `printf '%s' "$token" > /dev/ttyUSB0` is the entire write path. Do
 **not** use `echo` — it appends a trailing newline which the MCU
@@ -178,7 +178,10 @@ writes it returns 0 only if at least one copy made it out.
 
 The wrapper script (`/usr/bin/deskpi-shutdown-helper`) logs every step
 both to `/var/log/deskpi-shutdown.log` (persistent history) and to
-journald:
+journald. Every file line is `sync`ed immediately after being written:
+the MCU cuts the 5 V rail ~15 s after the token, and anything still in
+the page cache at that moment is lost — without the sync the log would
+look exactly like the helper never ran (verified on hardware):
 
 - `BEGIN cut-off sequence …` — the service started, the token is about
   to be sent;
@@ -202,9 +205,13 @@ shutdown itself.
 ### `pwmFanControl_v3.c` — button handling only
 
 The daemon watches the serial port in its 1-second loop. When it reads
-the literal `poweroff` / `power_off` token from the MCU (front-panel
-double-click), it logs `front-panel power button pressed — MCU sent a
-poweroff token`, runs `sync && systemctl poweroff` and exits. It
+the literal `poweroff` / `power_off` token from the MCU (DeskPi Pro
+front-panel double-click — the MCU reacts to nothing less; other DeskPi
+models unverified), it logs
+`front-panel power button pressed — MCU sent a poweroff token`, runs
+`sync && systemctl poweroff` and exits. A double-click delivers the
+token twice, once per click; the daemon acts on the first and the
+second is harmlessly ignored. It
 deliberately does **not** write the `power_off` cut-off token itself:
 doing so would start the MCU's 15 s timer at button-press time and
 leave the OS only ~14 s to shut down — a slow or heavily loaded system
@@ -216,7 +223,7 @@ user can force-cut with a long button press or by unplugging.
 
 | Shutdown cause | Who sends `power_off` |
 |---|---|
-| Double-click front power button | daemon triggers shutdown → service at `poweroff.target` |
+| Double-click front power button (DeskPi Pro) | daemon triggers shutdown → service at `poweroff.target` |
 | `sudo poweroff` over SSH | service |
 | unattended apt upgrade | service |
 | Kernel panic → orderly halt | service, if the OS still reaches `poweroff.target` |

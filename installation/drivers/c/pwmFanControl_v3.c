@@ -3,10 +3,14 @@
  *  Reads the CPU temperature once per second, maps it onto a
  *  temperature→PWM curve from /etc/deskpi.conf and writes the
  *  corresponding 7-byte ASCII token ("pwm_000" … "pwm_100") to the
- *  DeskPi MCU on /dev/ttyUSB0.  Also watches the same port for the
- *  MCU asking the host to shut down ("poweroff" / "power_off",
- *  front-panel power button) and triggers a clean
- *  `systemctl poweroff`.  The daemon deliberately does NOT write the
+ *  DeskPi Pro MCU on /dev/ttyUSB0.  Also watches the same port for
+ *  the MCU asking the host to shut down ("poweroff" / "power_off") and
+ *  triggers a clean `systemctl poweroff`.  Note the button semantics
+ *  (confirmed on hardware with a DeskPi Pro; other DeskPi models are
+ *  unverified): the front-panel power button reacts ONLY to a
+ *  double-click — a single click sends nothing at all, and each click
+ *  of the pair sends its own token, so the daemon receives TWO tokens
+ *  back to back.  The daemon deliberately does NOT write the
  *  9-byte "power_off" cut-off token itself — that is the exclusive
  *  job of deskpi-cut-off-power.service at poweroff.target, see
  *  drivers/c/README.md for the reasoning.
@@ -286,6 +290,15 @@ static void load_conf(unsigned int cfg[8])
    bytes — enough to hold a partial token — so serial noise cannot
    clog it.  The longest token is "power_off" (9 bytes), so keeping
    the last 8 bytes preserves any possible split point.
+
+   Button semantics (confirmed on hardware with a DeskPi Pro; other
+   DeskPi models are unverified): the MCU reacts ONLY to a double-click
+   of the front-panel power button — a single click sends nothing at
+   all.  Each click of the pair sends its own token, so one double-click
+   delivers TWO "poweroff" tokens back to back.  The first
+   one triggers the shutdown below; the second is harmless (the daemon
+   exits after the first token, and duplicate poweroff requests are
+   ignored by systemd).
 
    Why we do NOT ack with our own "power_off" token here: the MCU cuts
    the 5 V rail ~15 s after seeing that token.  Acking immediately
