@@ -22,7 +22,7 @@ echo "4 - Kali"
 echo "5 - Fedora"
 echo "6 - Cancel Uninstallation Process"
 echo "Just input the number and press enter."
-read -p "Your choice:" os_type
+read -r -p "Your choice:" os_type
 case $os_type in
 	1) 
 	   echo "Uninstalling DeskPi Utilities"

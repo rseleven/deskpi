@@ -8,7 +8,7 @@ set -euo pipefail
 #############################  User-adjustable vars  ###########################
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/etc/systemd/system"
-FAN_BIN="pwmFanControl64V2"
+FAN_BIN="pwmFanControl64V3"
 SAFE_CUTOFF_BIN="safeCutOffPower64"
 CFG_BIN="deskpi-config"
 FAN_SERVICE="$SYSTEMD_DIR/deskpi.service"
@@ -88,6 +88,7 @@ echo "Installing binaries to $BIN_DIR"
 install -m 755 "$SOURCE_DIR/$FAN_BIN"        "$BIN_DIR/$FAN_BIN"
 install -m 755 "$SOURCE_DIR/$SAFE_CUTOFF_BIN"        "$BIN_DIR/$SAFE_CUTOFF_BIN"
 install -m 755 "$CONFIG_DIR/deskpi-shutdown-helper"   "$BIN_DIR/deskpi-shutdown-helper"
+install -m 644 "$CONFIG_DIR/deskpi.logrotate" /etc/logrotate.d/deskpi
 install -m 755 "$CONFIG_DIR/$CFG_BIN"        "$BIN_DIR/$CFG_BIN"
 
 #############################  Enable dwc2 overlay  ############################

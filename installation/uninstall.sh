@@ -29,10 +29,10 @@ INSTALL_ROOT="$(cd "$SCRIPT_DIR" && pwd)"
 # ---- pretty-print helpers -------------------------------------------------
 if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
     C_RESET=$'\e[0m'; C_BOLD=$'\e[1m'; C_DIM=$'\e[2m'
-    C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'; C_BLUE=$'\e[34m'; C_CYAN=$'\e[36m'
+    C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'; C_CYAN=$'\e[36m'
 else
     C_RESET=""; C_BOLD=""; C_DIM=""
-    C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_CYAN=""
+    C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""
 fi
 
 say()  { printf '%s==>%s %s\n' "$C_BOLD$C_CYAN" "$C_RESET" "$*"; }
@@ -67,7 +67,7 @@ ${C_BOLD}What it removes:${C_RESET}
                        (and legacy aliases like deskpi-safeshut.service,
                         deskpiFanControl.service, deskpiFanStop.service)
   - binaries in /usr/bin/:
-                       pwmFanControl64, pwmFanControl64V2,
+                       pwmFanControl64, pwmFanControl64V2, pwmFanControl64V3,
                        safeCutOffPower64, deskpi-config,
                        Deskpi-uninstall, and the legacy pwmFanControl /
                        pwmControlFan / fanStop / deskpiFanControl /
@@ -121,7 +121,6 @@ detect_distro() {
         for row in "${DISTRO_TABLE[@]}"; do
             IFS='|' read -r tag name path <<< "$row"
             if [ "$tag" = "$OS_OVERRIDE" ]; then
-                DISTRO_TAG="$tag"
                 DISTRO_NAME="$name"
                 DISTRO_UNINSTALLER="$INSTALL_ROOT/$path"
                 return 0
@@ -166,7 +165,6 @@ detect_distro() {
     for row in "${DISTRO_TABLE[@]}"; do
         IFS='|' read -r tag name path <<< "$row"
         if [ "$tag" = "$detected" ]; then
-            DISTRO_TAG="$tag"
             DISTRO_NAME="$name"
             DISTRO_UNINSTALLER="$INSTALL_ROOT/$path"
             return 0
@@ -175,13 +173,11 @@ detect_distro() {
     return 1
 }
 
-DISTRO_TAG=""
 DISTRO_NAME=""
 DISTRO_UNINSTALLER=""
 
 if ! detect_distro; then
     warn "Could not identify the OS from /etc/os-release (ID=${ID:-?}). Falling back to a manual cleanup."
-    DISTRO_TAG="unknown"
     DISTRO_NAME="Unknown (manual cleanup)"
     DISTRO_UNINSTALLER=""
 fi
@@ -193,7 +189,7 @@ HAS_FAN_BIN="no"
 HAS_CUTOFF_BIN="no"
 [ -f /etc/systemd/system/deskpi.service ]               && HAS_FAN_UNIT="yes"
 [ -f /etc/systemd/system/deskpi-cut-off-power.service ] && HAS_CUTOFF_UNIT="yes"
-[ -x /usr/bin/pwmFanControl64V2 ] || [ -x /usr/bin/pwmFanControl64 ] && HAS_FAN_BIN="yes"
+[ -x /usr/bin/pwmFanControl64V3 ] || [ -x /usr/bin/pwmFanControl64V2 ] || [ -x /usr/bin/pwmFanControl64 ] && HAS_FAN_BIN="yes"
 [ -x /usr/bin/safeCutOffPower64 ] && HAS_CUTOFF_BIN="yes"
 
 # ---- summary --------------------------------------------------------------
@@ -229,7 +225,7 @@ if [ "$YES" != "1" ]; then
     printf '\n'
     printf '%sProceed with the uninstall?%s\n' "$C_BOLD" "$C_RESET"
     printf '  This will stop and disable the DeskPi systemd units, remove\n'
-    printf '  /usr/bin/{pwmFanControl64, pwmFanControl64V2, safeCutOffPower64,\n'
+    printf '  /usr/bin/{pwmFanControl64, pwmFanControl64V2, pwmFanControl64V3, safeCutOffPower64,\n'
     printf '  deskpi-config, ...} and the dtoverlay line from your config.txt.\n'
     printf '  Type %syes%s to uninstall, or %sno%s to cancel.\n' \
         "$C_RED" "$C_RESET" "$C_GREEN" "$C_RESET"
@@ -269,14 +265,15 @@ for svc in deskpi-safeshut.service deskpi-cutoffpower.service \
 done
 
 # Binaries
-for bin in pwmFanControl64 pwmFanControl64V2 safeCutOffPower64 \
+for bin in pwmFanControl64 pwmFanControl64V2 pwmFanControl64V3 safeCutOffPower64 \
            pwmFanControl pwmControlFan fanStop \
            deskpiFanControl deskpiFanStop \
            deskpi-config deskpi-shutdown-helper Deskpi-uninstall; do
     [ -f "/usr/bin/$bin" ] && rm -f "/usr/bin/$bin"
 done
 
-[ -f /etc/deskpi.conf ] && rm -f /etc/deskpi.conf
+if [ -f /etc/deskpi.conf ]; then rm -f /etc/deskpi.conf; fi
+rm -f /etc/logrotate.d/deskpi
 [ -f /etc/udev/rules.d/10-deskpi.rules ] && rm -f /etc/udev/rules.d/10-deskpi.rules
 
 # dwc2 overlay

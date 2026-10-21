@@ -17,6 +17,9 @@ SYSTEMD_DIR="/etc/systemd/system"
 FAN_SERVICE="$SYSTEMD_DIR/deskpi.service"
 PWR_SERVICE="$SYSTEMD_DIR/deskpi-cut-off-power.service"
 
+# Temp clone left by the installer's curl fallback (rm -rf /tmp/deskpi).
+[ -d /tmp/deskpi ] && rm -rf /tmp/deskpi && echo "Removed /tmp/deskpi"
+
 # Legacy Fedora service names
 LEGACY_SERVICES=(
     "/lib/systemd/system/deskpi.service"
@@ -44,12 +47,13 @@ for f in "${LEGACY_SERVICES[@]}"; do
 done
 
 echo "Removing /usr/bin/ binaries"
-for bin in pwmFanControl64 pwmFanControl64V2 safeCutOffPower64 \
+for bin in pwmFanControl64 pwmFanControl64V2 pwmFanControl64V3 safeCutOffPower64 deskpi-shutdown-helper \
            pwmControlFan fanStop \
            deskpi-config Deskpi-uninstall; do
     [ -f "$BIN_DIR/$bin" ] && rm -f "$BIN_DIR/$bin"
 done
-[ -f /etc/deskpi.conf ] && rm -f /etc/deskpi.conf
+if [ -f /etc/deskpi.conf ]; then rm -f /etc/deskpi.conf; fi
+rm -f /etc/logrotate.d/deskpi
 
 echo "Removing dtoverlay line from config.txt"
 for f in /boot/efi/config.txt /boot/firmware/config.txt /boot/config.txt; do

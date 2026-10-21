@@ -60,14 +60,23 @@ if [ -f "$PWR_SERVICE" ]; then
 fi
 
 ##############################  Remove binaries  ###############################
-for bin in "$FAN_BIN" "safeCutOffPower64" "$CFG_BIN" "pwmFanControl64V2" \
+for bin in "$FAN_BIN" "safeCutOffPower64" "$CFG_BIN" "pwmFanControl64V2" "pwmFanControl64V3" \
            "deskpi-shutdown-helper"; do
     [ -f "$BIN_DIR/$bin" ] && rm -f "$BIN_DIR/$bin" && echo "Removed $BIN_DIR/$bin"
 done
 
 ##############################  Remove user config  ############################
-[ -f /etc/deskpi.conf ] && rm -f /etc/deskpi.conf && echo "Removed /etc/deskpi.conf"
+if [ -f /etc/deskpi.conf ]; then
+    rm -f /etc/deskpi.conf
+    echo "Removed /etc/deskpi.conf"
+fi
+rm -f /etc/logrotate.d/deskpi
 [ -f /var/log/deskpi-shutdown.log ] && echo "Kept /var/log/deskpi-shutdown.log (history of past shutdowns)"
+
+##############################  Reload systemd  ################################
+# The unit files above were removed from disk; make systemd forget them
+# without waiting for the next unrelated daemon-reload.
+systemctl daemon-reload 2>/dev/null || true
 
 ##############################  Clean temp clone  ##############################
 if [ -d /tmp/deskpi ]; then

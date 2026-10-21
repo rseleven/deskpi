@@ -33,9 +33,15 @@ if [ -f "$PWR_SERVICE" ]; then
     rm -f "$PWR_SERVICE"
 fi
 
-for bin in pwmFanControl64 pwmFanControl64V2 safeCutOffPower64 deskpi-config; do
+for bin in pwmFanControl64 pwmFanControl64V2 pwmFanControl64V3 safeCutOffPower64 deskpi-shutdown-helper deskpi-config; do
     [ -f "$BIN_DIR/$bin" ] && rm -f "$BIN_DIR/$bin" && echo "Removed $BIN_DIR/$bin"
 done
+
+if [ -f /etc/deskpi.conf ]; then
+    rm -f /etc/deskpi.conf
+    echo "Removed /etc/deskpi.conf"
+fi
+rm -f /etc/logrotate.d/deskpi
 
 # Remove dwc2 overlay if we are the ones who added it (best-effort: just remove
 # the line; users who added it manually can re-add it).

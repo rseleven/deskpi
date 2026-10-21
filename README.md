@@ -6,11 +6,27 @@ The DeskPi Pro is a hardware kit for converting a standard Raspberry Pi 4 from a
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history. Highlights:
 
-- **[Unreleased] — All distros upgraded to the V2 fan daemon.** The
+- **[Unreleased] — Fan daemon renamed to V3.** `pwmFanControl_v2.c` →
+  `pwmFanControl_v3.c`, binary `pwmFanControl64V2` →
+  `pwmFanControl64V3`: spin-down to `pwm_000` fixed, the 5 V cut-off
+  token is sent only by `deskpi-cut-off-power.service` at
+  `poweroff.target`, and `/etc/deskpi.conf` is now a human-readable
+  `fan_N` format (legacy 8-integer configs are no longer parsed).
+- **[Unreleased] — Config validation and full event logging.**
+  `/etc/deskpi.conf` problems (garbage lines, unknown keys, duplicate
+  keys — first value wins, out-of-range values, non-monotonic
+  temperature sequences, corrupt/binary files) are reported to the
+  journal and repaired, never fatal. Optional `log_fan_changes = 1`
+  journals every fan level change with the triggering temperature. The
+  whole shutdown chain (button press → `systemctl poweroff` →
+  `power_off` token → 5 V rail cut) is now visible in
+  `journalctl` and `/var/log/deskpi-shutdown.log` — see FAQ.md for the
+  interpretation of every line.
+- **[Unreleased] — All distros upgraded to the same (V3) fan daemon.** The
   Ubuntu / DietPi / Kali / Manjaro / Fedora installers previously
   installed the legacy `pwmFanControl64` (V1, no curve support, no
-  poweroff detection); they now install `pwmFanControl64V2` just like
-  the Raspberry Pi OS installer. The V1 source
+  poweroff detection); they now install the same V3 daemon just
+  like the Raspberry Pi OS installer. The V1 source
   (`installation/drivers/c/pwmFanControl.c`) and the corresponding
   `pwmFanControl64` build/install target have been removed. Every
   supported distro now gets the same daemon, the same `/etc/deskpi.conf`
@@ -25,7 +41,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history. Highlights:
   `installation/drivers/deskpi-config`) have been re-unified after
   drifting apart.
 - **[Unreleased] — Gentler default fan curve.** The C default array in
-  `pwmFanControl_v2.c` was `{40,75, 50,75, 65,100, 75,100}`, sending
+  `pwmFanControl_v3.c` was `{40,75, 50,75, 65,100, 75,100}`, sending
   the fan to 75 % from 40 °C upward — loud and contrary to the FAQ
   statement "the fan stops automatically". Changed to
   `{40,25, 50,50, 65,75, 75,100}` so the fan is off below 40 °C and
@@ -45,8 +61,11 @@ deskpi/
 ├── LICENSE                GPLv3
 ├── installation/          per-distro install / uninstall scripts
 │   ├── README.md          file map
-│   ├── deskpi-config      interactive fan configurator (sudo ./deskpi-config)
+│   ├── install.sh         unified installer (auto-detects, prompts)
 │   ├── uninstall.sh       legacy cross-distro uninstaller
+│   ├── deskpi-config      interactive fan configurator (sudo ./deskpi-config)
+│   ├── deskpi-shutdown-helper      wrapper for the 5 V cut-off service
+│   ├── deskpi.logrotate   logrotate policy for the shutdown log
 │   ├── DietPi/
 │   ├── Fedora/            (deprecated, see Fedora/README.md)
 │   ├── Kali/
@@ -54,7 +73,7 @@ deskpi/
 │   ├── RaspberryPiOS/64bit/   ← recommended for most users
 │   └── Ubuntu/
 ├── installation/drivers/
-│   ├── c/                 pwmFanControl64V2 (fan daemon) + safeCutOffPower64 (5 V cut-off)
+│   ├── c/                 pwmFanControl64V3 (fan daemon) + safeCutOffPower64 (5 V cut-off)
 │   ├── python/            reference Python implementations
 │   ├── deskpi-config      mirror of the canonical interactive configurator
 │   ├── Deskpi-uninstall   legacy menu-driven uninstaller
@@ -135,13 +154,13 @@ The menu has the following options:
 
 | Key | Action |
 |-----|--------|
-| 1 | Pin the fan at 25 % (writes `pwm_025`) |
-| 2 | Pin the fan at 50 % (writes `pwm_050`) |
-| 3 | Pin the fan at 75 % (writes `pwm_075`) |
-| 4 | Pin the fan at 100 % (writes `pwm_100`) |
-| 5 | Switch the fan off (writes `pwm_000`) |
+| 1 | Switch the fan off (writes `pwm_000`) |
+| 2 | Pin the fan at 25 % (writes `pwm_025`) |
+| 3 | Pin the fan at 50 % (writes `pwm_050`) |
+| 4 | Pin the fan at 75 % (writes `pwm_075`) |
+| 5 | Pin the fan at 100 % (writes `pwm_100`) |
 | 6 | Define a custom temperature→PWM curve (writes `/etc/deskpi.conf`) |
-| 7 | Restore automatic control from the saved curve |
+| 7 | Restore automatic control (removes `/etc/deskpi.conf`; the daemon reverts to the built-in defaults) |
 | 0 | Quit |
 
 The default curve when no `/etc/deskpi.conf` exists is:
@@ -154,10 +173,17 @@ The default curve when no `/etc/deskpi.conf` exists is:
 | 65–75 °C | 75 % |
 | > 75 °C | 100 % |
 
+> **Note:** there is no `fan_100` key in `/etc/deskpi.conf` — the top
+> level has no upper bound, so `fan_75` is both the switch-on point of
+> 75 % and the point above which the fan runs at 100 %. See
+> [FAQ.md](FAQ.md) for the full config format.
+
 > **Note:** running `deskpi-config` stops `deskpi.service` so the
 > daemon does not fight with the manual PWM level you just set.
 > Pick option 7 (or run `sudo systemctl restart deskpi.service`) to
-> put the daemon back in charge.
+> put the daemon back in charge. Note that option 7 **deletes**
+> `/etc/deskpi.conf` — after it the daemon runs the built-in default
+> curve, not your previously saved one.
 
 ![Example](https://raw.githubusercontent.com/DeskPi-Team/deskpi/master/imgs/deskpi-config-snap.jpg)
 
